@@ -1,5 +1,5 @@
 {
   "usingComponents": {
-    "list": "plugin://myPlugin/list"
+    "collector": "plugin://formid-collector/formid-collector"
   }
 }

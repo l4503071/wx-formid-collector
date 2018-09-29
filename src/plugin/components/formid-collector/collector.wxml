@@ -1,0 +1,4 @@
+<form class="formid-collector" bindsubmit='handleCollect' report-submit='true'>
+  <button id="submit" class="hidden" form-type='submit'></button>
+  <label for="submit" catchtap><slot /></label>
+</form>

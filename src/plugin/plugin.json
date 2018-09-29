@@ -1,6 +1,6 @@
 {
+  "main": "index.js",
   "publicComponents": {
-    "list": "components/list/list"
-  },
-  "main": "index.js"
+    "formid-collector": "components/formid-collector/collector"
+  }
 }

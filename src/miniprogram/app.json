@@ -3,7 +3,7 @@
     "pages/index/index"
   ],
   "plugins": {
-    "myPlugin": {
+    "formid-collector": {
       "version": "dev",
       "provider": "wxe91685411de8a15c"
     }
