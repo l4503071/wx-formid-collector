@@ -1,0 +1,53 @@
+# Output files
+/app
+
+
+# Temporary folders
+/.temporary
+
+
+# Coverage directory used by tools like istanbul
+
+
+# Dependency folders
+node_modules
+npm-debug.log
+.npmrc
+
+
+# NPM
+npm-shrinkwrap.json
+
+
+# YARN
+.yarnrc
+
+
+# Numerous always-ignore extensions
+*.bak
+*.diff
+*.err
+*.orig
+*.log
+*.rej
+*.swo
+*.swp
+*.zip
+*.vi
+*~
+
+
+# OS or Editor folders
+.vscode
+.DS_Store
+._*
+Thumbs.db
+.cache
+.project
+.settings
+.tmproj
+*.esproj
+nbproject
+*.sublime-project
+*.sublime-workspace
+.idea
