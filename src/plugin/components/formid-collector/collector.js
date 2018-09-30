@@ -93,6 +93,49 @@ const methods = {
   handleCollect (event) {
     let { formId } = event.detail || {}
     this.collect(formId)
+  },
+
+  /**
+   * 重定向
+   * 因为跳转无法收集 form id，
+   * 因此这里提供了一种方便的形式去进行跳转
+   */
+  redirect () {
+    let { url, openType, delta } = this.properties
+    if (!url) {
+      return
+    }
+
+    switch (openType) {
+      case 'navigate': {
+        wx.navigateTo({ url })
+        break
+      }
+
+      case 'redirect': {
+        wx.redirectTo({ url })
+        break
+      }
+
+      case 'switchTab': {
+        wx.switchTab({ url })
+        break
+      }
+
+      case 'reLaunch': {
+        wx.reLaunch({ url })
+        break
+      }
+
+      case 'navigateBack': {
+        wx.navigateBack({ url, delta })
+        break
+      }
+
+      default: {
+        wx.navigateTo({ url })
+      }
+    }
   }
 }
 
