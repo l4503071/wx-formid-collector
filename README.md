@@ -60,7 +60,7 @@ formIdCollectorService.start()
 
 为了缓解服务器压力，所以收集到的 formId 会通过定时任务统一时间进行提交。
 
-### 特点
+#### 特点
 
 - 所有任务列表都会存储在 `wx.storage` 中。
 - 第一个任务会立即执行。
