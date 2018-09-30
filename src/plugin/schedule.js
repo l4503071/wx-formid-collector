@@ -7,14 +7,14 @@
 export default class Schedule {
   /**
    * 默认配置
-   * @static
+   *
    * @type {Object}
    */
   static defaultSettings = {
     // 本地存储的键值
     token: 'schedule@formIdCollector',
     // 间隔时间, 默认: 60秒
-    interval: 10e3,
+    interval: 60e3,
     // 超时时间, 默认: 30秒
     timeout: 30e3,
     // 重试时间，默认: 3秒
@@ -44,7 +44,12 @@ export default class Schedule {
 
   /**
    * 构造函数
-   * @param {Object} options 配置
+   *
+   * @param {Object} options 配置信息
+   * @param {String} options.token 本地存储的键值
+   * @param {SafeInteger} options.interval 本地存储的键值
+   * @param {SafeInteger} options.timeout 本地存储的键值
+   * @param {SafeInteger} options.retryTime 本地存储的键值
    */
   constructor (options) {
     this.running = false
@@ -55,10 +60,24 @@ export default class Schedule {
     this.setOptions(options)
   }
 
+  /**
+   * 设置
+   *
+   * @param {Object} options 配置信息
+   * @param {String} options.token 本地存储的键值
+   * @param {SafeInteger} options.interval 本地存储的键值
+   * @param {SafeInteger} options.timeout 本地存储的键值
+   * @param {SafeInteger} options.retryTime 本地存储的键值
+   */
   setOptions (options = {}) {
     this.settings = Object.assign({}, Schedule.defaultSettings, options)
   }
 
+  /**
+   * 开始执行
+   *
+   * @return {Boolean} 是否响应启动
+   */
   start () {
     if (this.running === true) {
       return false
@@ -66,21 +85,26 @@ export default class Schedule {
 
     this.running = true
 
-    this.loop = () =>
-      this.nextTask()
-        .then(this.loop.bind(this))
-        .catch(() => {
-          const { interval } = this.settings
-
-          this.timeId && clearTimeout(this.timeId)
-          this.timeId = setTimeout(this.loop.bind(this), interval)
-        })
+    this.loop = () => this.nextTask().then(this.loop).catch(() => {
+      /**
+       * 这里 catch 不代表失败，代表没有到上传时间，等返回的 reject 事件
+       * 上传错误超时等，会进行 retry 下面 report 函数里面做相应操作
+       */
+      const { interval } = this.settings
+      this.timeId && clearTimeout(this.timeId)
+      this.timeId = setTimeout(this.loop.bind(this), interval)
+    })
 
     this.loop()
 
     return true
   }
 
+  /**
+   * 结束执行
+   *
+   * @return {Boolean} 是否响应关闭
+   */
   stop () {
     if (this.running === false) {
       return false
@@ -95,6 +119,7 @@ export default class Schedule {
 
   /**
    * 监听定时任务执行
+   *
    * @param {Function} handler 处理函数
    */
   onExcuted (handler) {
@@ -125,19 +150,15 @@ export default class Schedule {
 
     let nowTime = Date.now()
     if (cd > nowTime) {
-      return new Promise(resolve => {
+      return new Promise((resolve) => {
         let nextTime = cd - nowTime
-        // 避免本地时间错误超大导致无法执行，这里做一个容错处理
+        // 避免本地时间错误 (超大) 导致无法执行，这里做一个容错处理
         if (nextTime > interval) {
           nextTime = Date.now() + interval
         }
 
         this.timeId && clearTimeout(this.timeId)
-        this.timeId = setTimeout(() => {
-          this.excute(tasks)
-              .then(resolve)
-              .catch(resolve)
-        }, nextTime)
+        this.timeId = setTimeout(() => this.excute(tasks).then(resolve).catch(resolve), nextTime)
       })
     }
 
@@ -151,10 +172,11 @@ export default class Schedule {
 
   /**
    * 执行任务队列
+   *
    * @param {Array} tasks 任务队列
    */
   excute (tasks) {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       let { token, interval } = this.settings
       if (!Array.isArray(tasks)) {
         let schedule = wx.getStorageSync(token)
@@ -176,7 +198,7 @@ export default class Schedule {
        */
       this.lock(true)
 
-      let data = tasks.map(task => task.data)
+      let data = tasks.map((task) => task.data)
       this.excutePromise = this.report(data)
 
       this.excutePromise.then(() => {
@@ -193,17 +215,30 @@ export default class Schedule {
 
         // 先解锁，后重试，否则会任务表会被锁住，导致无法再执行
         this.lock(false)
-        this.retry()
-
-        resolve()
+        return this.retry()
       })
     })
   }
 
+  /**
+   * 提交报告
+   *
+   * @param {Object} data 数据
+   * @return {Promise}
+   */
   report (data) {
     let { timeout } = this.settings
 
-    let promise = waterfall(this.handlers, data)
+    let cancelThisPromise
+    let promise = new Promise((resolve, reject) => {
+      cancelThisPromise = () => reject(new Error('It has been canceled'))
+
+      let promises = this.handlers.map((fn) => fn.call(this, data))
+      return Promise.all(promises).then(resolve).catch(reject)
+    })
+
+    promise.cancel = cancelThisPromise
+
     let clearTimer = () => timeId && clearTimeout(timeId)
     promise.then(clearTimer).catch(clearTimer)
 
@@ -216,6 +251,7 @@ export default class Schedule {
 
   /**
    * 推送新任务
+   *
    * @param {Any} task 任务
    */
   push (data) {
@@ -225,6 +261,7 @@ export default class Schedule {
 
     let { token } = this.settings
     let schedule = wx.getStorageSync(token) || {}
+
     // 如果没有时间，则插入当前时间，尽快执行第一个任务
     schedule.cd = Number.isSafeInteger(schedule.cd) ? schedule.cd : Date.now()
     schedule.locked = typeof schedule.locked === 'boolean' ? schedule.locked : false
@@ -232,39 +269,46 @@ export default class Schedule {
     let task = { data, id: guid() }
     schedule.tasks = (schedule.tasks || []).concat([task])
     wx.setStorageSync(token, schedule)
-
-    this.nextTask()
   }
 
   /**
    * 修改下一个任务时间
    * 不受锁表影响
+   *
    * @param {Integer} nextTime 下一个任务时间
    */
   plan (nextTime) {
     let { token, interval } = this.settings
-
     if (!Number.isSafeInteger(nextTime)) {
       nextTime = interval
     }
 
     let schedule = wx.getStorageSync(token) || {}
     schedule.cd = Date.now() + nextTime
+
     wx.setStorageSync(token, schedule)
   }
 
   /**
    * 重试
+   * 默认三秒重试
    */
   retry () {
     let { retryTime } = this.settings
-    this.plan(retryTime || 3e3)
-    this.nextTask()
+    retryTime = retryTime || 3e3
+
+    this.plan(retryTime)
+
+    return new Promise((resolve, reject) => {
+      let nextTask = () => this.nextTask().then(resolve).catch(reject)
+      setTimeout(nextTask, retryTime)
+    })
   }
 
   /**
    * 删除任务
-   * 锁表后不能删除任务，否则容易出现
+   * 锁表后不能删除任务，否则失败就无法重试
+   *
    * @param {Any|Array} tasks 任务
    * @param {Boolean} force 强制执行，不受锁表影响
    */
@@ -284,9 +328,7 @@ export default class Schedule {
       return
     }
 
-    schedule.tasks = schedule.tasks.filter(
-      curTask => !tasks.find(task => task.id === curTask.id)
-    )
+    schedule.tasks = schedule.tasks.filter((curTask) => !tasks.find((task) => task.id === curTask.id))
     wx.setStorageSync(token, schedule)
   }
 
@@ -341,61 +383,14 @@ export default class Schedule {
       return
     }
 
+    /**
+     * 从 轮训，超时，重试 三个维度的时间抽出最大花费的时间
+     * 若当前时间减去下一次任务时间大于最大花费的时间，则解锁
+     * 否则退出导致锁仍存在则无法执行
+     */
     let maxSpendTime = Math.max(interval, timeout, retryTime)
     Date.now() - schedule.cd > maxSpendTime && this.lock(false)
   }
-}
-
-/**
- * 瀑布流
- * @param {Array} asyncFns 方法队列
- * @param {Any} args 任意参数
- * @param {Object} promise
- */
-function waterfall (asyncFns, ...args) {
-  let promises = []
-  for (let i = 0, l = asyncFns.length; i < l; i++) {
-    let fn = asyncFns[i]
-    if (fn.length > args.length) {
-      promises.push(
-        new Promise((resolve, reject) =>
-          fn(...args, error => (error ? reject(error) : resolve()))
-        )
-      )
-    } else {
-      promises.push(
-        new Promise((resolve, reject) => {
-          let promise = null
-          try {
-            promise = fn(...args)
-          } catch (error) {
-            reject(error)
-          }
-
-          if (
-            (promise instanceof Promise || typeof promise === 'object') &&
-            typeof promise.then === 'function' &&
-            typeof promise.catch === 'function'
-          ) {
-            return promise.then(resolve).catch(reject)
-          }
-
-          resolve()
-        })
-      )
-    }
-  }
-
-  let cancelThisPromise
-  let promise = new Promise((resolve, reject) => {
-    cancelThisPromise = () => reject(new Error('It has been canceled'))
-    return Promise.all(promises)
-      .then(resolve)
-      .catch(reject)
-  })
-
-  promise.cancel = cancelThisPromise
-  return promise
 }
 
 /**

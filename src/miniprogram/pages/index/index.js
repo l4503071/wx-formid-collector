@@ -1,5 +1,1 @@
-Page({
-  onLoad () {
-
-  }
-})
+Page({})
