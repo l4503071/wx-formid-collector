@@ -2,7 +2,8 @@
   "name": "wx-formid-collector",
   "version": "0.0.1",
   "description": "Form ID 收集组件",
-  "author": "YY YiJian Team",
+  "author": "David Jones <qowera@qq.com> (https://github.com/DavidKk)",
+  "contributors": [],
   "license": "MIT",
   "private": true,
   "lint-staged": {
